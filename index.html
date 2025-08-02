@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Luck Rarity Roller</title>
+  <style>
+    body {
+      background-color: #bababa;
+      font-family: Arial, sans-serif;
+      padding: 2em;
+    }
+
+    #tghd {
+      display: inline-block;
+      margin-top: 1em;
+      width: 50px;
+      height: 50px;
+      transition: filter 0.3s ease;
+    }
+
+    #result, #currency, #message {
+      margin-bottom: 1em;
+    }
+
+    #message {
+      padding: 10px;
+      background: #f0f0f0;
+      border: 1px solid #ccc;
+      font-weight: bold;
+    }
+
+    .cutscene {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%;
+      height: 100vh;
+      background: black;
+      color: white;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-family: 'Georgia', serif;
+      font-size: 2em;
+      text-shadow: 0px 0px 5px #ff5ec7;
+      text-align: center;
+      z-index: 9999;
+    }
+
+    .cutscene.hidden {
+      display: none;
+    }
+
+    @keyframes blink {
+      0%, 100% { border-color: transparent; }
+      50% { border-color: white; }
+    }
+
+    #cutscene-text::after {
+      content: "";
+      display: inline-block;
+      width: 10px;
+      height: 1em;
+      border-right: 2px solid white;
+      animation: blink 1s step-end infinite;
+    }
+  </style>
+</head>
+<body>
+  <div id="currency">
+    Shocks: <span id="shocks">100</span><br>
+    Luck: <span id="luck-display">1</span>
+  </div>
+
+  <button onclick="roll()">Roll!</button>
+  <button onclick="buyItem('x2')">Buy x2 Luck Potion (+1 luck, 40 shocks)</button>
+  <button onclick="buyItem('null')">Buy Null Potion (+40 luck, 100 shocks)</button>
+  <button onclick="buyItem('lucky')">Buy Super Potion (+5 luck, 25 shocks)</button>
+  <button onclick="buyItem('godly')">Buy Godly Potion (+500 luck, 1000 shocks)</button>
+  <button onclick="buyItem('luckshot')">Buy Luckshot Potion (+10000 luck, 5000 shocks & 1500 luck)</button>
+  <button onclick="disableCutscenes()">Disable Cutscenes</button>
+
+  <div id="message">Welcome! Roll to begin.</div>
+  <div id="result">Press "Roll!" to try your luck.</div>
+  <img id="tghd" src="theglorioushotdog.png">
+
+  <div class="cutscene hidden" id="cutscene">
+    <div id="cutscene-text"></div>
+  </div>
+
+  <script>
+    let iscutscene = false;
+    let cutscenesEnabled = true;
+    let shocks = 100;
+    let baseLuck = 1;
+    let activeBoosts = [];
+
+    const rarities = [
+      { name: "ultra_sigil+", chance: 1/1e12, color: "#e6e6ff", shocks: 1000000 },
+      { name: "hyper_sigil", chance: 1/5e11, color: "#d4d4ff", shocks: 900000 },
+      { name: "mega_sigil", chance: 1/2e11, color: "#c2c2ff", shocks: 800000 },
+      { name: "omega_sigil", chance: 1/1e11, color: "#b0b0ff", shocks: 700000 },
+      { name: "sigil_extreme", chance: 1/5e10, color: "#9e9eff", shocks: 600000 },
+      { name: "sigil_supreme", chance: 1/2e10, color: "#8c8cff", shocks: 500000 },
+      { name: "sigil_eternal", chance: 1/1e10, color: "#7a7aff", shocks: 400000 },
+      { name: "sigil_infinite", chance: 1/5e9, color: "#6868ff", shocks: 300000 },
+      { name: "sigil_cosmic", chance: 1/2e9, color: "#5656ff", shocks: 200000 },
+      { name: "sigil_primordia", chance: 1/1e9, color: "#4444ff", shocks: 150000 },
+      { name: "sigil", chance: 1/100000000000, color: "#ffffff", shocks: 250000 },
+      { name: "executable", chance: 1/50000000000, color: "#ff66ff", shocks: 120000 },
+      { name: "tieromega", chance: 1/33333333333, color: "#25000000000", shocks: 100000 },
+      { name: "finalframe", chance: 1/25000000000, color: "ffeeaa", shocks: 88888 },
+      { name: "relic", chance: 1/20000000000, color: "ff2ec7", shocks: 75000 },
+      { name: "GODVOID", chance: 1/15000000000, color: "000022", shocks: 60000 },
+      { name: "fatal", chance: 1/12000000000, color: "#ff0000", shocks: 50000 },
+      { name: "0xDEAD", chance: 1/9999999999, color: "aaffaa", shocks: 42000 },
+      { name: "undefined", chance: 1/7777777777, color: "#00ffff", shocks: 33333 },
+      { name: "metaframe", chance: 1/5000000000, color: "#ff1aff", shocks: 21474 },
+      { name: "undefined", chance: 1/2147483647, color: "#ff0080", shocks: 10000 },
+      { name: "null", chance: 1/1000000000, color: "#808080", shocks: 9000 },
+      { name: "developer", chance: 1/999999999, color: "#00ff00", shocks: 8500 },
+      { name: "absolute", chance: 1/500000000, color: "#ff6600", shocks: 8000 },
+      { name: "transcendent", chance: 1/250000000, color: "#ffccff", shocks: 7000 },
+      { name: "ethereal", chance: 1/150000000, color: "#ccffff", shocks: 6000 },
+      { name: "omega", chance: 1/100000000, color: "#cc0000", shocks: 5500 },
+      { name: "genesis", chance: 1/99999999, color: "#ff9900", shocks: 5000 },
+      { name: "singularity", chance: 1/45000000, color: "#000000", shocks: 4500 },
+      { name: "eclipse", chance: 1/33333333, color: "#330066", shocks: 4000 },
+      { name: "infinity", chance: 1/25000000, color: "#ffffff", shocks: 3500 },
+      { name: "cosmic", chance: 1/18500000, color: "#6600cc", shocks: 3000 },
+      { name: "divine", chance: 1/12000000, color: "#ffdd00", shocks: 2500 },
+      { name: "quantum", chance: 1/7500000, color: "#00ccff", shocks: 2000 },
+      { name: "nebula", chance: 1/5800000, color: "#9933ff", shocks: 1500 },
+      { name: "plasma", chance: 1/4200000, color: "#66ffcc", shocks: 1200 },
+      { name: "void", chance: 1/3750000, color: "#1a0033", shocks: 1000 },
+      { name: "glitch", chance: 1/2500000, color: "#ff00ff", shocks: 800 },
+      { name: "Code: broken", chance: 1/2000000, color: "#00ff04", shocks: 700 },
+      { name: "[redacted]", chance: 1/1500000, color: "#00ff00", shocks: 600 },
+      { name: "KHDGWBNVIK====", chance: 1/1450000, color: "#ffffff", shocks: 550 },
+      { name: "transcendant", chance: 1/1000000, color: "#0ff0ff", shocks: 500 },
+      { name: "classical", chance: 1/499999, color: "#ffffff", shocks: 450 },
+      { name: "error", chance: 1/404201, color: "#ff0033", shocks: 400 },
+      { name: "glow - extreme", chance: 1/99999, color: "#ffd4f0", shocks: 350 },
+      { name: "mythic", chance: 1/75000, color: "#ff00cc", shocks: 300 },
+      { name: "Ethereal", chance: 1/60300, color: "#a100ff", shocks: 250 },
+      { name: "Legendary", chance: 1/5000, color: "#ff9900", shocks: 200 },
+      { name: "code", chance: 1/1024, color: "#ffffff", shocks: 150 },
+      { name: "lucky", chance: 1/777, color: "#00ffff", shocks: 100 },
+      { name: "Rare", chance: 1/100, color: "#007bff", shocks: 50 },
+      { name: "fake", chance: 1/50, color: "#0077cf", shocks: 30 },
+      { name: "glow", chance: 1/15, color: "#ffeeaa", shocks: 20 },
+      { name: "Uncommon", chance: 1/10, color: "#22aa22", shocks: 10 },
+      { name: "morning", chance: 1/7, color: "#ffd75e", shocks: 5 },
+      { name: "electric", chance: 1/5, color: "#ffff00", shocks: 2 },
+      { name: "usual", chance: 1/4, color: "#96eb7a", shocks: 1 },
+      { name: "Common", chance: 1/2, color: "#888888", shocks: 0 },];
+
+    function getLuck() {
+      return baseLuck + activeBoosts.reduce((acc, b) => acc + b.amount, 0);
+    }
+
+    function updateUI() {
+      document.getElementById("shocks").textContent = shocks;
+      document.getElementById("luck-display").textContent = getLuck();
+    }
+
+    function displayMessage(msg) {
+      const msgEl = document.getElementById("message");
+      msgEl.textContent = msg;
+    }
+
+    setInterval(() => {
+      const now = Date.now();
+      activeBoosts = activeBoosts.filter(boost => boost.expiresAt > now);
+      updateUI();
+    }, 1000);
+
+    function buyItem(type) {
+      const currentLuck = getLuck();
+
+      if (type === "x2" && shocks >= 40) {
+        shocks -= 40;
+        activeBoosts.push({ amount: 1, expiresAt: Date.now() + 600000 });
+        displayMessage("x2 Luck Potion used!");
+      } else if (type === "null" && shocks >= 100) {
+        shocks -= 100;
+        activeBoosts.push({ amount: 40, expiresAt: Date.now() + 600000 });
+        displayMessage("Null Potion activated!");
+      } else if (type === "lucky" && shocks >= 25) {
+        shocks -= 25;
+        activeBoosts.push({ amount: 5, expiresAt: Date.now() + 600000 });
+        displayMessage("Super Potion activated!");
+      } else if (type === "godly" && shocks >= 1000) {
+        shocks -= 1000;
+        activeBoosts.push({ amount: 500, expiresAt: Date.now() + 600000 });
+        displayMessage("Godly Potion unleashed!");
+      } else if (type === "luckshot") {
+        if (shocks >= 5000 && currentLuck >= 1500) {
+          shocks -= 5000;
+          activeBoosts.push({ amount: 10000, expiresAt: Date.now() + 600000 });
+          displayMessage("Luckshot Potion activated! Massive luck boost!");
+        } else {
+          displayMessage("Not enough shocks or luck for Luckshot Potion.");
+        }
+      } else {
+        displayMessage("Not enough shocks!");
+      }
+
+      updateUI();
+    }
+
+    function roll() {
+      if (iscutscene) return;
+
+      const resultEl = document.getElementById("result");
+      const tghd = document.getElementById("tghd");
+      resultEl.className = "";
+
+      for (let r of rarities) {
+        if (Math.random() < r.chance * getLuck()) {
+          shocks += r.shocks;
+
+          if (r.name === "lucky") {
+            startCutscene("You just got lucky...");
+          } else if (r.name === "glow - extreme") {
+            startCutscene("...");
+          }
+
+          const oneIn = Math.round(1 / r.chance).toLocaleString();
+          resultEl.innerHTML = `You got a <span style="color:${r.color}; font-weight:bold;">${r.name.toUpperCase()}</span> with a chance of 1 in ${oneIn}. You earned <b>${r.shocks} shocks</b>!`;
+          updateUI();
+          return;
+        }
+      }
+
+      resultEl.innerHTML = `You got a <span style="color:#888888; font-weight:bold;">COMMON</span> with a chance of 1 in 2.`;
+      updateUI();
+    }
+
+    function startCutscene(text) {
+      if (!cutscenesEnabled) return;
+
+      const el = document.getElementById("cutscene");
+      const textEl = document.getElementById("cutscene-text");
+      textEl.textContent = text;
+      el.classList.remove("hidden");
+      iscutscene = true;
+      setTimeout(() => {
+        el.classList.add("hidden");
+        iscutscene = false;
+      }, 3000);
+    }
+
+    function disableCutscenes() {
+      cutscenesEnabled = false;
+      displayMessage("Cutscenes have been disabled.");
+    }
+  </script>
+</body>
+</html>
